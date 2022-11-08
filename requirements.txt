@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pyperclip
+websockets
+websocket
+rel
+pydantic
