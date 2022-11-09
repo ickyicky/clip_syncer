@@ -1,6 +1,7 @@
 from .clipboard_watcher import ClipboardContentWatcher
 from .manager import ClipboardContentManager
 from .connection import WebSocketConnection
+from .publisher import Publisher
 import argparse
 from queue import Queue
 import time
@@ -8,7 +9,8 @@ import time
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("API_URL", type=str, help="server api url")
+    parser.add_argument("API_URL", type=str, help="server api url for pubsub")
+    parser.add_argument("PUBLISH_URL", type=str, help="server api url for publishing")
     parser.add_argument(
         "--watcher-interval", "-w", type=float, help="watcher interval", default=0.0
     )
@@ -23,6 +25,9 @@ if __name__ == "__main__":
         default=0.01,
     )
     parser.add_argument("--interval", "-i", type=float, help="interval", default=0.1)
+    parser.add_argument(
+        "--publisher-interval", "-p", type=float, help="interval", default=0.1
+    )
 
     args = parser.parse_args()
 
@@ -36,11 +41,15 @@ if __name__ == "__main__":
     connection = WebSocketConnection(
         args.API_URL,
         remote_queue=remote_queue,
-        local_queue=local_queue,
         timeout=args.connection_timeout,
     )
+    publisher = Publisher(
+        args.PUBLISH_URL,
+        local_queue=local_queue,
+        interval=args.publisher_interval,
+    )
 
-    threads = (watcher, manager, connection)
+    threads = (watcher, manager, connection, publisher)
 
     for thread in threads:
         thread.start()

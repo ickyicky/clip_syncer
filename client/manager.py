@@ -30,6 +30,6 @@ class ClipboardContentManager(StoppableThread):
             except Empty:
                 continue
 
-            if content is not None:
+            if content is not None and content.time > self.watcher.last_update_time:
                 self.watcher.set_ignore(content)
-                pyperclip.copy(content)
+                pyperclip.copy(content.content)

@@ -1,7 +1,7 @@
-import websocket
-import time
-import rel
-from queue import Queue, Empty
+from fastapi_websocket_pubsub import PubSubClient
+from queue import Queue
+import asyncio
+import requests
 from typing import Union
 from .base import StoppableThread
 from .event import NewKeyboardContent
@@ -12,33 +12,29 @@ class WebSocketConnection(StoppableThread):
         self,
         api_url: str,
         remote_queue: Queue,
-        local_queue: Queue,
         timeout: Union[int, float] = 0.01,
     ):
         super().__init__()
-        self.websocket = websocket.WebSocketApp(
-            api_url,
-            on_message=self.handle_new_content,
-        )
-        self.websocket.run_forever(dispatcher=rel)
+        self.api_url = api_url
         self.remote_queue = remote_queue
-        self.local_queue = local_queue
         self.timeout = timeout
-
-    def handle_new_content(self, ws, content: str) -> None:
-        print(f"RECEIVED: {content}")
-        self.remote_queue.put(NewKeyboardContent(time=time.time(), content=content))
+        self.loop = asyncio.BaseEventLoop()
 
     def run(self):
+        asyncio.run(self.main())
+
+    async def on_events(self, data, topic):
+        print(f"RECEIVED: {data}")
+        self.remote_queue.put(NewKeyboardContent(time=data[1], content=data[0]))
+
+    async def stop_client(self):
         while not self.stopped():
-            try:
-                content = self.local_queue.get(timeout=self.timeout)
-            except Empty:
-                continue
+            await asyncio.sleep(self.timeout)
 
-            if content is not None:
-                self.websocket.send(content.content)
-                print(f"SEND: {content.content}")
+        await self.client.disconnect()
 
-        rel.signal(2, rel.abort)
-        rel.dispatch()
+    async def main(self):
+        self.client = PubSubClient(["event"], callback=self.on_events)
+        self.client.start_client(self.api_url)
+        await self.stop_client()
+        await self.client.wait_until_done()

@@ -18,30 +18,34 @@ class ClipboardContentWatcher(StoppableThread):
         self.queue = queue
         self.check_interval = check_interval
         self.current_content = None
+        self.last_update_time = time.time()
         self._ignore_content = Queue()
 
-    def set_ignore(self, content: str):
+    def set_ignore(self, content: NewKeyboardContent):
         """
         Tells to ignore next content
         """
         self._ignore_content.put(content)
 
-    def ignored_content(self) -> Optional[str]:
+    def ignored_content(self) -> Optional[NewKeyboardContent]:
         if not self._ignore_content.empty():
             return self._ignore_content.get()
 
     def run(self) -> None:
+        ignored_content = None
         while not self.stopped():
             current_content = pyperclip.paste()
-            ignored_content = self.ignored_content()
+            ignored_content = self.ignored_content() or ignored_content
 
-            if (
-                current_content != self.current_content
-                and current_content != ignored_content
+            if current_content != self.current_content and (
+                ignored_content is None or current_content != ignored_content.content
             ):
                 self.current_content = current_content
+                self.last_update_time = time.time()
                 self.queue.put(
-                    NewKeyboardContent(time=time.time(), content=self.current_content)
+                    NewKeyboardContent(
+                        time=self.last_update_time, content=self.current_content
+                    )
                 )
 
             time.sleep(self.check_interval)
